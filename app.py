@@ -261,7 +261,7 @@ async def run_search(image_bytes: bytes, content_type: str):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="index.html")
 
 @app.post("/api/search")
 async def search(file: UploadFile = File(...)):
