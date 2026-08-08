@@ -134,7 +134,13 @@ function render(d){
       <h3>${esc(x.name||'Tuntematon paikka')}</h3>
       <b>${esc(x.city||'')} ${x.country?'· '+esc(x.country):''}</b>
       <p>${esc(x.resolved?.address||x.address||'')}</p>
-      <p>${esc(x.verification?.reason||x.why||'')}</p>
+      <<p>
+📍 ${x.resolved?.lat ?? '–'}, ${x.resolved?.lng ?? '–'}
+${x.resolved?.lat != null && x.resolved?.lng != null
+  ? ` · <a href="https://www.google.com/maps?q=${x.resolved.lat},${x.resolved.lng}" target="_blank">Avaa kartalla</a>`
+  : ''}
+</p>
+      p>${esc(x.verification?.reason||x.why||'')}</p>
       ${x.resolved?.google_maps_uri?`<a href="${x.resolved.google_maps_uri}" target="_blank" rel="noreferrer">📍 Avaa kartalla</a>`:''}
     </div>`;
   }
