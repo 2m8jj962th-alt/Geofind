@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>GeoFind AI</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0b1020;color:#f4f7ff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{min-height:100vh;max-width:620px;margin:auto;padding:22px 16px 40px}
+h1{font-size:34px;margin:12px 0 6px}
+.sub{color:#aeb9d6;line-height:1.45;margin-bottom:24px}
+.card{background:#151d33;border:1px solid #293656;border-radius:22px;padding:18px;margin:14px 0;box-shadow:0 10px 30px #0003}
+.preview{width:100%;border-radius:16px;display:none;max-height:55vh;object-fit:contain;background:#080d18}
+.big{width:100%;padding:18px 16px;border:0;border-radius:17px;font-size:19px;font-weight:800;cursor:pointer}
+.primary{background:#eef2ff;color:#0b1020}
+.secondary{background:#263352;color:#fff}
+input{display:none}
+#status{display:none;text-align:center}
+.spinner{width:42px;height:42px;border:4px solid #35415f;border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;margin:5px auto 16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stage{font-size:18px;font-weight:700}
+.small{color:#9eabc9;font-size:14px}
+.grid{display:grid;gap:12px}
+.result{background:#10172a;border:1px solid #2c395d;border-radius:17px;padding:15px}
+.score{font-size:28px;font-weight:900}
+.meter{height:8px;background:#2a3450;border-radius:9px;overflow:hidden;margin:8px 0}
+.fill{height:100%;background:#91a6ff}
+a{color:#cbd6ff}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+  <h1>🌍 GeoFind AI</h1>
+  <div class="sub">Anna yksi kuva. Minä etsin mahdollisen paikan maailmanlaajuisesti ja vertaan rakennuksia sekä katukuvia.</div>
+
+  <div class="card" id="start">
+    <input id="camera" type="file" accept="image/*" capture="environment">
+    <input id="gallery" type="file" accept="image/*">
+    <button class="big primary" onclick="camera.click()">📷 Ota kuva ja etsi</button>
+    <div style="height:10px"></div>
+    <button class="big secondary" onclick="gallery.click()">🖼️ Valitse kuva puhelimesta</button>
+  </div>
+
+  <div class="card hidden" id="selected">
+    <img id="preview" class="preview">
+    <div style="height:12px"></div>
+    <button class="big primary" id="searchBtn">🔎 ETSI KOKO MAAILMASTA</button>
+    <div style="height:10px"></div>
+    <button class="big secondary" onclick="resetApp()">Vaihda kuva</button>
+  </div>
+
+  <div class="card" id="status">
+    <div class="spinner"></div>
+    <div class="stage" id="stage">Aloitetaan…</div>
+    <p class="small">Älä sulje sivua. Haku voi kestää hetken, koska ehdokkaita tarkistetaan myös katukuvista.</p>
+  </div>
+
+  <div id="out"></div>
+</main>
+
+<script>
+const camera=document.getElementById('camera');
+const gallery=document.getElementById('gallery');
+const selected=document.getElementById('selected');
+const preview=document.getElementById('preview');
+const searchBtn=document.getElementById('searchBtn');
+const status=document.getElementById('status');
+const stage=document.getElementById('stage');
+const out=document.getElementById('out');
+let chosen=null;
+
+camera.onchange=pick; gallery.onchange=pick;
+
+function pick(e){
+  chosen=e.target.files?.[0];
+  if(!chosen)return;
+  preview.src=URL.createObjectURL(chosen);
+  preview.style.display='block';
+  selected.classList.remove('hidden');
+  document.getElementById('start').classList.add('hidden');
+  out.innerHTML='';
+}
+
+function resetApp(){
+  chosen=null; camera.value=''; gallery.value='';
+  selected.classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+  status.style.display='none'; out.innerHTML='';
+}
+
+searchBtn.onclick=async()=>{
+  if(!chosen)return;
+  searchBtn.disabled=true;
+  status.style.display='block';
+  const stages=[
+    '🔍 Tutkin rakennuksia ja katua…',
+    '🌍 Etsin osumia maailmanlaajuisesti…',
+    '🏛️ Vertaan rakennusten yksityiskohtia…',
+    '🗺️ Tarkistan sijainteja ja katukuvia…',
+    '👁️ Varmistan parhaita osumia…'
+  ];
+  let i=0;
+  stage.textContent=stages[0];
+  const timer=setInterval(()=>{i=Math.min(i+1,stages.length-1);stage.textContent=stages[i]},3500);
+
+  try{
+    const fd=new FormData(); fd.append('file',chosen);
+    const r=await fetch('/api/search',{method:'POST',body:fd});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'Haku epäonnistui');
+    clearInterval(timer);
+    status.style.display='none';
+    render(d);
+  }catch(e){
+    clearInterval(timer);
+    stage.textContent='Virhe: '+e.message;
+    searchBtn.disabled=false;
+  }
+};
+
+function render(d){
+  const results=d.results||[];
+  let html='<div class="card"><h2>🏆 Parhaat löydöt</h2>';
+  if(!results.length) html+='<p>En löytänyt vielä käyttökelpoista osumaa.</p>';
+  html+='<div class="grid">';
+  for(const x of results){
+    const s=Number(x.verification?.score||0);
+    html+=`<div class="result">
+      <div class="score">${s}/100</div>
+      <div class="meter"><div class="fill" style="width:${Math.max(0,Math.min(100,s))}%"></div></div>
+      <h3>${esc(x.name||'Tuntematon paikka')}</h3>
+      <b>${esc(x.city||'')} ${x.country?'· '+esc(x.country):''}</b>
+      <p>${esc(x.resolved?.address||x.address||'')}</p>
+      <p>${esc(x.verification?.reason||x.why||'')}</p>
+      ${x.resolved?.google_maps_uri?`<a href="${x.resolved.google_maps_uri}" target="_blank" rel="noreferrer">📍 Avaa kartalla</a>`:''}
+    </div>`;
+  }
+  html+='</div></div>';
+  html+='<div class="card"><div class="small">Pisteet ovat visuaalisen varmennuksen arvioita. Sovelluksen pitää ilmoittaa epävarmuus eikä esittää arvausta varmana sijaintina.</div></div>';
+  out.innerHTML=html;
+  window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: geofind-ai
+    runtime: docker
+    plan: free
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5
+      - key: MAX_CANDIDATES
+        value: "8"
